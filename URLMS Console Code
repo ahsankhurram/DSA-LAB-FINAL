@@ -1,0 +1,388 @@
+package DSA;
+
+import java.util.Scanner;
+
+class Node<T> {
+    T data;
+    Node<T> next;
+    Node(T data) { this.data = data; this.next = null; }
+}
+
+abstract class User {
+    int id;
+    String name, password;
+    User(int id, String name, String password) {
+        this.id = id;
+        this.name = name;
+        this.password = password;
+    }
+    abstract String role();
+}
+
+class Admin extends User {
+    Admin(int i, String n, String p) { super(i, n, p); }
+    String role() { return "Admin"; }
+}
+
+class Librarian extends User {
+    Librarian(int i, String n, String p) { super(i, n, p); }
+    String role() { return "Librarian"; }
+}
+
+class Student extends User {
+    Student(int i, String n, String p) { super(i, n, p); }
+    String role() { return "Student"; }
+}
+
+class Teacher extends User {
+    Teacher(int i, String n, String p) { super(i, n, p); }
+    String role() { return "Teacher"; }
+}
+
+class Book {
+    int id, year;
+    String title;
+    boolean issued;
+    Book(int id, String title, int year) {
+        this.id = id; this.title = title; this.year = year; this.issued = false;
+    }
+}
+
+class Issue {
+    int userId, bookId;
+    Issue(int u, int b) { userId = u; bookId = b; }
+}
+
+public class URLMS {
+    static Scanner sc = new Scanner(System.in);
+    static Node<User> users = null;
+    static Node<Book> books = null;
+    static Node<Issue> issues = null;
+    static Node<Book> returnStack = null;
+    static Node<Book> reqFront = null, reqRear = null;
+
+    static void addUser(User u) {
+        if (findUserById(u.id) != null) {
+            System.out.println("❌ User ID already exists. Try another ID.");
+            return;
+        }
+        Node<User> n = new Node<>(u);
+        if (users == null || u.id < users.data.id) {
+            n.next = users;
+            users = n;
+            System.out.println("✔ User added successfully");
+            return;
+        }
+        Node<User> t = users;
+        while (t.next != null && t.next.data.id < u.id) t = t.next;
+        n.next = t.next;
+        t.next = n;
+        System.out.println("✔ User added successfully");
+    }
+
+    static User findUserById(int id) {
+        Node<User> t = users;
+        while (t != null) {
+            if (t.data.id == id) return t.data;
+            t = t.next;
+        }
+        return null;
+    }
+
+    static User login(int id, String pass) {
+        Node<User> t = users;
+        while (t != null) {
+            if (t.data.id == id && t.data.password.equals(pass)) return t.data;
+            t = t.next;
+        }
+        return null;
+    }
+
+    static void registerStudent() {
+        System.out.println("\n------ STUDENT REGISTRATION ------");
+        System.out.print("Enter Student ID: "); 
+        int id = sc.nextInt(); sc.nextLine();
+        System.out.print("Enter Student Name: "); 
+        String name = sc.nextLine();
+        System.out.print("Create Password: "); 
+        String pass = sc.nextLine();
+        addUser(new Student(id, name, pass));
+    }
+
+    static void registerTeacher() {
+        System.out.println("\n------ TEACHER REGISTRATION ------");
+        System.out.print("Enter Teacher ID: "); 
+        int id = sc.nextInt(); sc.nextLine();
+        System.out.print("Enter Teacher Name: "); 
+        String name = sc.nextLine();
+        System.out.print("Create Password: "); 
+        String pass = sc.nextLine();
+        addUser(new Teacher(id, name, pass));
+    }
+
+    static void viewAllUsers() {
+        System.out.println("\n=========== ALL USERS ===========");
+        System.out.println("ID\tNAME\tROLE");
+        Node<User> t = users;
+        while (t != null) {
+            System.out.println(t.data.id + "\t" + t.data.name + "\t" + t.data.role());
+            t = t.next;
+        }
+    }
+
+    static void addBook() {
+        System.out.println("\n------ ADD NEW BOOK ------");
+        System.out.print("Enter Book ID: "); 
+        int id = sc.nextInt(); sc.nextLine();
+
+        if (findBook(id) != null) {
+            System.out.println("❌ Book ID already exists.");
+            return;
+        }
+
+        System.out.print("Enter Book Title: "); 
+        String title = sc.nextLine();
+
+        System.out.print("Enter Publication Year: "); 
+        int year = sc.nextInt(); sc.nextLine();
+
+        Book newBook = new Book(id, title, year);
+        Node<Book> n = new Node<>(newBook);
+        if (books == null || id < books.data.id) {
+            n.next = books;
+            books = n;
+            System.out.println("✔ Book added successfully");
+            return;
+        }
+        Node<Book> t = books;
+        while (t.next != null && t.next.data.id < id) t = t.next;
+        n.next = t.next;
+        t.next = n;
+        System.out.println("✔ Book added successfully");
+    }
+
+    static void removeBook() {
+        System.out.print("\nEnter Book ID to Remove: "); 
+        int id = sc.nextInt(); sc.nextLine();
+        Node<Book> t = books, prev = null;
+        while (t != null) {
+            if (t.data.id == id) {
+                if (t.data.issued) {
+                    System.out.println("❌ Book is currently issued, cannot remove.");
+                    return;
+                }
+                if (prev == null) books = t.next; else prev.next = t.next;
+                System.out.println("✔ Book removed successfully");
+                return;
+            }
+            prev = t; t = t.next;
+        }
+        System.out.println("❌ Book not found");
+    }
+
+    static Book findBook(int id) {
+        Node<Book> t = books;
+        while (t != null) {
+            if (t.data.id == id) return t.data;
+            t = t.next;
+        }
+        return null;
+    }
+
+    static void viewBooks(int mode) {
+        System.out.println("\n=========== BOOK LIST ===========");
+        System.out.println("ID\tTITLE\tYEAR\tSTATUS");
+        Node<Book> t = books;
+        while (t != null) {
+            if (mode == 0 || (mode == 1 && !t.data.issued) || (mode == 2 && t.data.issued)) {
+                System.out.println(t.data.id + "\t" + t.data.title + "\t" + t.data.year + "\t" + (t.data.issued ? "Issued" : "Available"));
+            }
+            t = t.next;
+        }
+    }
+
+    static void bubbleSortByID() {
+        if (books == null) return;
+        boolean swapped;
+        Node<Book> ptr1;
+        Node<Book> lptr = null;
+        do {
+            swapped = false;
+            ptr1 = books;
+            while (ptr1.next != lptr) {
+                if (ptr1.data.id > ptr1.next.data.id) {
+                    Book tmp = ptr1.data;
+                    ptr1.data = ptr1.next.data;
+                    ptr1.next.data = tmp;
+                    swapped = true;
+                }
+                ptr1 = ptr1.next;
+            }
+            lptr = ptr1;
+        } while (swapped);
+        System.out.println("✔ Books sorted by ID");
+    }
+
+    static void bubbleSortByYear() {
+        if (books == null) return;
+        boolean swapped;
+        Node<Book> ptr1;
+        Node<Book> lptr = null;
+        do {
+            swapped = false;
+            ptr1 = books;
+            while (ptr1.next != lptr) {
+                if (ptr1.data.year > ptr1.next.data.year) {
+                    Book tmp = ptr1.data;
+                    ptr1.data = ptr1.next.data;
+                    ptr1.next.data = tmp;
+                    swapped = true;
+                }
+                ptr1 = ptr1.next;
+            }
+            lptr = ptr1;
+        } while (swapped);
+        System.out.println("✔ Books sorted by Year");
+    }
+
+    static void issueBook(int uid) {
+        System.out.print("Enter Book ID to Issue: "); 
+        int id = sc.nextInt(); sc.nextLine();
+        Book b = findBook(id);
+        if (b == null) { System.out.println("❌ Book not found"); return; }
+        if (b.issued) { System.out.println("❌ Book already issued"); return; }
+        b.issued = true;
+        Node<Issue> n = new Node<>(new Issue(uid, id));
+        n.next = issues; issues = n;
+        System.out.println("✔ Book issued successfully");
+    }
+
+    static void returnBook(int uid) {
+        System.out.print("Enter Book ID to Return: "); 
+        int id = sc.nextInt(); sc.nextLine();
+        Node<Issue> t = issues, prev = null;
+        while (t != null) {
+            if (t.data.userId == uid && t.data.bookId == id) {
+                if (prev == null) issues = t.next; else prev.next = t.next;
+                Book b = findBook(id);
+                b.issued = false;
+                Node<Book> s = new Node<>(b); s.next = returnStack; returnStack = s;
+                System.out.println("✔ Book returned successfully");
+                return;
+            }
+            prev = t; t = t.next;
+        }
+        System.out.println("❌ Issue record not found");
+    }
+
+    static void requestBook() {
+        System.out.print("Enter Book ID to Request: "); 
+        int id = sc.nextInt(); sc.nextLine();
+        Book b = findBook(id);
+        if (b == null) { System.out.println("❌ Book not found"); return; }
+        Node<Book> n = new Node<>(b);
+        if (reqRear == null) reqFront = reqRear = n;
+        else { reqRear.next = n; reqRear = n; }
+        System.out.println("✔ Book request added to queue");
+    }
+
+    static void viewRequests() {
+        System.out.println("\n=========== BOOK REQUEST QUEUE ===========");
+        Node<Book> t = reqFront;
+        if (t == null) { System.out.println("No pending requests"); return; }
+        while (t != null) { System.out.println("Requested Book: " + t.data.title); t = t.next; }
+    }
+
+    static void adminMenu() {
+        while (true) {
+            System.out.println("\n=========== ADMIN DASHBOARD ===========");
+            System.out.println("1. View All Users");
+            System.out.println("2. View All Books");
+            System.out.println("3. View Issued Books");
+            System.out.println("4. Logout");
+            System.out.print("Enter choice: "); int ch = sc.nextInt(); sc.nextLine();
+            if (ch == 1) viewAllUsers();
+            else if (ch == 2) viewBooks(0);
+            else if (ch == 3) viewBooks(2);
+            else return;
+        }
+    }
+
+    static void librarianMenu() {
+        while (true) {
+            System.out.println("\n=========== LIBRARIAN DASHBOARD ===========");
+            System.out.println("1. Add Book");
+            System.out.println("2. Remove Book");
+            System.out.println("3. View All Books");
+            System.out.println("4. View Available Books");
+            System.out.println("5. View Issued Books");
+            System.out.println("6. View Returned Books");
+            System.out.println("7. View Book Requests");
+            System.out.println("8. Sort Books by ID");
+            System.out.println("9. Sort Books by Year");
+            System.out.println("10. Logout");
+            System.out.print("Enter choice: "); int ch = sc.nextInt(); sc.nextLine();
+            if (ch == 1) addBook();
+            else if (ch == 2) removeBook();
+            else if (ch == 3) viewBooks(0);
+            else if (ch == 4) viewBooks(1);
+            else if (ch == 5) viewBooks(2);
+            else if (ch == 6) { Node<Book> t = returnStack; System.out.println("Recently Returned Books:"); while (t != null) { System.out.println(t.data.title); t = t.next; } }
+            else if (ch == 7) viewRequests();
+            else if (ch == 8) bubbleSortByID();
+            else if (ch == 9) bubbleSortByYear();
+            else return;
+        }
+    }
+
+    static void userMenu(User u) {
+        while (true) {
+            System.out.println("\n=========== USER DASHBOARD ===========");
+            System.out.println("1. View Books");
+            System.out.println("2. Issue Book");
+            System.out.println("3. Return Book");
+            System.out.println("4. Request Book");
+            System.out.println("5. Sort Books by ID");
+            System.out.println("6. Sort Books by Year");
+            System.out.println("7. Logout");
+            System.out.print("Enter choice: "); int ch = sc.nextInt(); sc.nextLine();
+            if (ch == 1) viewBooks(0);
+            else if (ch == 2) issueBook(u.id);
+            else if (ch == 3) returnBook(u.id);
+            else if (ch == 4) requestBook();
+            else if (ch == 5) bubbleSortByID();
+            else if (ch == 6) bubbleSortByYear();
+            else return;
+        }
+    }
+
+    public static void main(String[] args) {
+        addUser(new Admin(1, "Admin", "admin"));
+        addUser(new Librarian(2, "Librarian", "lib"));
+
+        while (true) {
+            System.out.println("\n======================================");
+            System.out.println("   UNIVERSITY LIBRARY MANAGEMENT");
+            System.out.println("======================================");
+            System.out.println("1. Login");
+            System.out.println("2. Register Student");
+            System.out.println("3. Register Teacher");
+            System.out.println("4. Exit");
+            System.out.print("Enter your choice: "); int ch = sc.nextInt(); sc.nextLine();
+
+            if (ch == 1) {
+                System.out.print("Enter User ID: "); int id = sc.nextInt(); sc.nextLine();
+                System.out.print("Enter Password: "); String pass = sc.nextLine();
+                User u = login(id, pass);
+                if (u == null) System.out.println("❌ Invalid credentials");
+                else if (u.role().equals("Admin")) adminMenu();
+                else if (u.role().equals("Librarian")) librarianMenu();
+                else userMenu(u);
+            }
+            else if (ch == 2) registerStudent();
+            else if (ch == 3) registerTeacher();
+            else if (ch == 4) { System.out.println("Exiting system..."); System.exit(0); }
+            else System.out.println("❌ Invalid option");
+        }
+    }
+}
