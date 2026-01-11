@@ -1,0 +1,514 @@
+package application;
+
+import javafx.application.Application;
+import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.stage.Stage;
+import javafx.geometry.*;
+import javafx.collections.*;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontPosture;
+import javafx.scene.text.FontWeight;
+import javafx.scene.effect.DropShadow;
+import javafx.animation.FadeTransition;
+import javafx.util.Duration;
+import java.util.ArrayList;
+import java.util.Optional;
+
+public class URLMSJavaFX extends Application {
+
+    abstract class User {
+        int id; String name, password;
+        User(int id, String name, String password){ this.id=id; this.name=name; this.password=password; }
+        abstract String role();
+    }
+
+    class Admin extends User { Admin(int i,String n,String p){super(i,n,p);} String role(){return "Admin";} }
+    class Librarian extends User { Librarian(int i,String n,String p){super(i,n,p);} String role(){return "Librarian";} }
+    class Student extends User { Student(int i,String n,String p){super(i,n,p);} String role(){return "Student";} }
+    class Teacher extends User { Teacher(int i,String n,String p){super(i,n,p);} String role(){return "Teacher";} }
+    class Book { int id,year; String title; boolean issued; Book(int i,String t,int y){id=i;title=t;year=y;issued=false;} }
+    class Issue { int userId,bookId; Issue(int u,int b){userId=u;bookId=b;} }
+
+    private ArrayList<User> users = new ArrayList<>();
+    private ArrayList<Book> books = new ArrayList<>();
+    private ArrayList<Issue> issues = new ArrayList<>();
+    private ArrayList<Book> returnStack = new ArrayList<>();
+    private ArrayList<Book> requestQueue = new ArrayList<>();
+
+    private Stage primaryStage;
+    private Scene loginScene, adminScene, librarianScene, userScene;
+    private User currentUser;
+
+    public static void main(String[] args){launch(args);}
+
+    @Override
+    public void start(Stage stage){
+        primaryStage = stage;
+        users.add(new Admin(1,"Admin","admin"));
+        users.add(new Librarian(2,"Librarian","lib"));
+        loginScene = createLoginScene();
+        primaryStage.setScene(loginScene);
+        primaryStage.setTitle("University Library Management");
+        primaryStage.setWidth(900); primaryStage.setHeight(650);
+        primaryStage.show();
+    }
+
+    private Scene createLoginScene(){
+        VBox root = new VBox(20);
+        root.setAlignment(Pos.CENTER);
+        root.setPadding(new Insets(20));
+        root.setStyle("-fx-background-color: linear-gradient(to bottom, #667eea, #764ba2);");
+
+        Label lblTitle = new Label("University Library Management");
+        lblTitle.setFont(new Font("Arial Bold",30));
+        DropShadow ds = new DropShadow();
+        ds.setOffsetY(3.0f); ds.setColor(Color.DARKBLUE);
+        lblTitle.setEffect(ds);
+
+        TextField tfId = new TextField();
+        tfId.setPromptText("Enter ID");
+        tfId.setMaxWidth(220);
+
+        PasswordField pfPass = new PasswordField();
+        pfPass.setPromptText("Enter Password");
+        pfPass.setMaxWidth(220);
+
+        HBox buttons = new HBox(10); buttons.setAlignment(Pos.CENTER);
+        Button btnLogin = new Button("Login");
+        Button btnRegStudent = new Button("Register Student");
+        Button btnRegTeacher = new Button("Register Teacher");
+        buttons.getChildren().addAll(btnLogin, btnRegStudent, btnRegTeacher);
+
+        btnLogin.setOnAction(e->{
+            try{
+                int id = Integer.parseInt(tfId.getText());
+                String pass = pfPass.getText();
+                Optional<User> u = users.stream().filter(us->us.id==id && us.password.equals(pass)).findFirst();
+                if(u.isPresent()){
+                    currentUser = u.get();
+                    if(currentUser.role().equals("Admin")) adminScene = createAdminScene();
+                    else if(currentUser.role().equals("Librarian")) librarianScene = createLibrarianScene();
+                    else userScene = createUserScene();
+                    if(currentUser.role().equals("Admin")) primaryStage.setScene(adminScene);
+                    else if(currentUser.role().equals("Librarian")) primaryStage.setScene(librarianScene);
+                    else primaryStage.setScene(userScene);
+                } else showAlert("Error","Invalid credentials");
+            } catch(NumberFormatException ex){showAlert("Error","ID must be a number");}
+        });
+
+        btnRegStudent.setOnAction(e-> primaryStage.setScene(createRegistrationScene("Student")));
+        btnRegTeacher.setOnAction(e-> primaryStage.setScene(createRegistrationScene("Teacher")));
+
+        root.getChildren().addAll(lblTitle, tfId, pfPass, buttons);
+
+        FadeTransition ft = new FadeTransition(Duration.seconds(2), root);
+        ft.setFromValue(0); ft.setToValue(1); ft.play();
+
+        return new Scene(root);
+    }
+
+    private Scene createRegistrationScene(String type){
+        VBox root = new VBox(15);
+        root.setAlignment(Pos.CENTER);
+        root.setPadding(new Insets(20));
+        root.setStyle("-fx-background-color: linear-gradient(to right, #fbc2eb, #a6c1ee);");
+
+        Label lbl = new Label(type+" Registration"); lbl.setFont(new Font(24));
+        TextField tfId = new TextField(); tfId.setPromptText("Enter ID");
+        TextField tfName = new TextField(); tfName.setPromptText("Enter Name");
+        PasswordField pf = new PasswordField(); pf.setPromptText("Enter Password");
+        HBox btnBox = new HBox(10); btnBox.setAlignment(Pos.CENTER);
+        Button btnReg = new Button("Register");
+        Button btnBack = new Button("Back");
+        btnBox.getChildren().addAll(btnReg, btnBack);
+
+        btnReg.setOnAction(e->{
+            try{
+                int id = Integer.parseInt(tfId.getText());
+                String name = tfName.getText();
+                String pass = pf.getText();
+                if(users.stream().anyMatch(u->u.id==id)){showAlert("Error","ID already exists"); return;}
+                if(type.equals("Student")) users.add(new Student(id,name,pass));
+                else users.add(new Teacher(id,name,pass));
+                showAlert("Success",type+" registered successfully");
+                primaryStage.setScene(loginScene);
+            } catch(NumberFormatException ex){showAlert("Error","ID must be a number");}
+        });
+
+        btnBack.setOnAction(e->primaryStage.setScene(loginScene));
+        root.getChildren().addAll(lbl, tfId, tfName, pf, btnBox);
+        return new Scene(root);
+    }
+
+    private Scene createAdminScene() {
+        VBox root = new VBox(10);
+        root.setPadding(new Insets(10));
+        root.setStyle("-fx-background-color: linear-gradient(to bottom, #e0c3fc, #8ec5fc);");
+
+        Label lbl = new Label("		Admin Dashboard");
+        lbl.setFont(Font.font("Verdana", FontWeight.BOLD, 28));
+        lbl.setTextFill(Color.DARKBLUE);
+
+        DropShadow ds = new DropShadow();
+        ds.setOffsetY(2.0);
+        ds.setColor(Color.GRAY);
+        lbl.setEffect(ds);
+
+        TableView<User> table = new TableView<>();
+        Button btnViewUsers = new Button("View All Users");
+        btnViewUsers.setOnAction(e -> {
+            table.getColumns().clear();
+            table.getItems().clear();
+
+            TableColumn<User, String> c1 = new TableColumn<>("ID");
+            c1.setCellValueFactory(d -> new ReadOnlyStringWrapper("" + d.getValue().id));
+            TableColumn<User, String> c2 = new TableColumn<>("Name");
+            c2.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue().name));
+            TableColumn<User, String> c3 = new TableColumn<>("Role");
+            c3.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue().role()));
+
+            table.getColumns().addAll(c1, c2, c3);
+            table.getItems().addAll(users);
+        });
+
+        VBox userBox = new VBox(5, btnViewUsers, table);
+        VBox.setVgrow(table, Priority.ALWAYS);
+
+        TableView<Book> bookTable = new TableView<>();
+        Button btnViewBooks = new Button("View All Books");
+        btnViewBooks.setOnAction(e -> {
+            bookTable.getColumns().clear();
+            bookTable.getItems().clear();
+
+            TableColumn<Book, String> c1 = new TableColumn<>("ID");
+            c1.setCellValueFactory(d -> new ReadOnlyStringWrapper("" + d.getValue().id));
+            TableColumn<Book, String> c2 = new TableColumn<>("Title");
+            c2.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue().title));
+            TableColumn<Book, String> c3 = new TableColumn<>("Year");
+            c3.setCellValueFactory(d -> new ReadOnlyStringWrapper("" + d.getValue().year));
+            TableColumn<Book, String> c4 = new TableColumn<>("Status");
+            c4.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue().issued ? "Issued" : "Available"));
+
+            bookTable.getColumns().addAll(c1, c2, c3, c4);
+            bookTable.getItems().addAll(books);
+        });
+
+        VBox bookBox = new VBox(5, btnViewBooks, bookTable);
+        VBox.setVgrow(bookTable, Priority.ALWAYS);
+
+        HBox hbox = new HBox(20, userBox, bookBox);
+        HBox.setHgrow(userBox, Priority.ALWAYS);
+        HBox.setHgrow(bookBox, Priority.ALWAYS);
+        hbox.setAlignment(Pos.TOP_CENTER);
+        VBox.setVgrow(hbox, Priority.ALWAYS);
+
+        Button btnLogout = new Button("Logout");
+        btnLogout.setOnAction(e -> primaryStage.setScene(loginScene));
+
+        root.getChildren().addAll(lbl, hbox, btnLogout);
+
+        ScrollPane sp = new ScrollPane(root);
+        sp.setFitToWidth(true);
+        sp.setFitToHeight(true);
+
+        Scene scene = new Scene(sp, 1200, 700);
+        return scene;
+    }
+
+    private Scene createLibrarianScene() {
+        VBox root = new VBox(10);
+        root.setPadding(new Insets(10));
+        root.setStyle("-fx-background-color: linear-gradient(to bottom, #e0c3fc, #8ec5fc);");
+
+        Label lbl = new Label("		Librarian Dashboard");
+        lbl.setFont(Font.font("Verdana", FontWeight.BOLD, 28));
+        lbl.setTextFill(Color.DARKBLUE);
+
+        DropShadow ds = new DropShadow();
+        ds.setOffsetY(2.0);
+        ds.setColor(Color.GRAY);
+        lbl.setEffect(ds);
+
+        HBox hbox = new HBox(20);
+        hbox.setAlignment(Pos.TOP_CENTER);
+
+        VBox controls = new VBox(10);
+        controls.setPrefWidth(180);
+        Button btnAdd = new Button("Add Book");
+        Button btnRemove = new Button("Remove Book");
+        Button btnView = new Button("View Books");
+        Button btnSortID = new Button("Sort by ID");
+        Button btnSortYear = new Button("Sort by Year");
+        Button btnLogout = new Button("Logout");
+        controls.getChildren().addAll(btnAdd, btnRemove, btnView, btnSortID, btnSortYear, btnLogout);
+
+        controls.getChildren().forEach(node -> {
+            if (node instanceof Button) {
+                ((Button) node).setMaxWidth(Double.MAX_VALUE);
+            }
+        });
+
+        TableView<Book> bookTable = new TableView<>();
+        HBox.setHgrow(bookTable, Priority.ALWAYS);
+        VBox.setVgrow(bookTable, Priority.ALWAYS);
+
+        Runnable refreshTable = () -> {
+            bookTable.getColumns().clear();
+            bookTable.getItems().clear();
+
+            TableColumn<Book, String> c1 = new TableColumn<>("ID");
+            c1.setCellValueFactory(d -> new ReadOnlyStringWrapper("" + d.getValue().id));
+            c1.setMinWidth(50);
+
+            TableColumn<Book, String> c2 = new TableColumn<>("Title");
+            c2.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue().title));
+            c2.setMinWidth(200);
+
+            TableColumn<Book, String> c3 = new TableColumn<>("Year");
+            c3.setCellValueFactory(d -> new ReadOnlyStringWrapper("" + d.getValue().year));
+            c3.setMinWidth(80);
+
+            TableColumn<Book, String> c4 = new TableColumn<>("Status");
+            c4.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue().issued ? "Issued" : "Available"));
+            c4.setMinWidth(100);
+
+            bookTable.getColumns().addAll(c1, c2, c3, c4);
+            bookTable.getItems().addAll(books);
+        };
+
+        btnView.setOnAction(e -> refreshTable.run());
+
+        btnAdd.setOnAction(e -> {
+            TextInputDialog t1 = new TextInputDialog();
+            t1.setHeaderText("Enter Book ID");
+            Optional<String> r1 = t1.showAndWait();
+            if (r1.isPresent()) {
+                try {
+                    int id = Integer.parseInt(r1.get());
+                    if (books.stream().anyMatch(b -> b.id == id)) {
+                        showAlert("Error", "Book ID exists");
+                        return;
+                    }
+                    TextInputDialog t2 = new TextInputDialog();
+                    t2.setHeaderText("Enter Book Title");
+                    Optional<String> r2 = t2.showAndWait();
+                    if (!r2.isPresent()) return;
+
+                    TextInputDialog t3 = new TextInputDialog();
+                    t3.setHeaderText("Enter Publication Year");
+                    Optional<String> r3 = t3.showAndWait();
+                    if (!r3.isPresent()) return;
+
+                    books.add(new Book(id, r2.get(), Integer.parseInt(r3.get())));
+                    showAlert("Success", "Book added");
+                    refreshTable.run();
+                } catch (NumberFormatException ex) {
+                    showAlert("Error", "Invalid number");
+                }
+            }
+        });
+
+        btnRemove.setOnAction(e -> {
+            TextInputDialog t = new TextInputDialog();
+            t.setHeaderText("Enter Book ID to remove");
+            Optional<String> res = t.showAndWait();
+            if (res.isPresent()) {
+                try {
+                    int id = Integer.parseInt(res.get());
+                    Book b = books.stream().filter(book -> book.id == id).findFirst().orElse(null);
+                    if (b == null) {
+                        showAlert("Error", "Book not found");
+                        return;
+                    }
+                    if (b.issued) {
+                        showAlert("Error", "Book is issued");
+                        return;
+                    }
+                    books.remove(b);
+                    showAlert("Success", "Book removed");
+                    refreshTable.run();
+                } catch (NumberFormatException ex) {
+                    showAlert("Error", "Invalid number");
+                }
+            }
+        });
+
+        btnSortID.setOnAction(e -> {
+            books.sort((a, b) -> a.id - b.id);
+            refreshTable.run();
+        });
+        btnSortYear.setOnAction(e -> {
+            books.sort((a, b) -> a.year - b.year);
+            refreshTable.run();
+        });
+        btnLogout.setOnAction(e -> primaryStage.setScene(loginScene));
+
+        ScrollPane tableScroll = new ScrollPane(bookTable);
+        tableScroll.setFitToHeight(true);
+        tableScroll.setFitToWidth(true);
+        HBox.setHgrow(tableScroll, Priority.ALWAYS);
+        VBox.setVgrow(tableScroll, Priority.ALWAYS);
+
+        hbox.getChildren().addAll(controls, tableScroll);
+        VBox.setVgrow(hbox, Priority.ALWAYS);
+
+        root.getChildren().addAll(lbl, hbox);
+
+        Scene scene = new Scene(root, 900, 650);
+
+        return scene;
+    }
+
+    private Scene createUserScene() {
+        VBox root = new VBox(15);
+        root.setPadding(new Insets(15));
+        root.setStyle("-fx-background-color: linear-gradient(to bottom, #e0c3fc, #8ec5fc);");
+
+        Label lbl = new Label("		User Dashboard");
+        lbl.setFont(Font.font("Verdana", FontWeight.BOLD, 28));
+        lbl.setTextFill(Color.DARKBLUE);
+
+        DropShadow ds = new DropShadow();
+        ds.setOffsetY(2.0);
+        ds.setColor(Color.GRAY);
+        lbl.setEffect(ds);
+
+        root.getChildren().add(lbl);
+
+        HBox hbox = new HBox(20);
+        hbox.setAlignment(Pos.TOP_CENTER);
+        HBox.setHgrow(hbox, Priority.ALWAYS);
+
+        VBox controls = new VBox(10);
+        controls.setPrefWidth(180);
+        Button btnView = new Button("View Books");
+        Button btnIssue = new Button("Issue Book");
+        Button btnReturn = new Button("Return Book");
+        Button btnLogout = new Button("Logout");
+        controls.getChildren().addAll(btnView, btnIssue, btnReturn, btnLogout);
+
+        controls.getChildren().forEach(node -> {
+            if (node instanceof Button) ((Button) node).setMaxWidth(Double.MAX_VALUE);
+        });
+
+        TableView<Book> bookTable = new TableView<>();
+        HBox.setHgrow(bookTable, Priority.ALWAYS);
+        VBox.setVgrow(bookTable, Priority.ALWAYS);
+
+        Runnable refreshTable = () -> {
+            bookTable.getColumns().clear();
+            bookTable.getItems().clear();
+
+            TableColumn<Book, String> c1 = new TableColumn<>("ID");
+            c1.setCellValueFactory(d -> new ReadOnlyStringWrapper("" + d.getValue().id));
+            c1.setMinWidth(50);
+
+            TableColumn<Book, String> c2 = new TableColumn<>("Title");
+            c2.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue().title));
+            c2.setMinWidth(200);
+
+            TableColumn<Book, String> c3 = new TableColumn<>("Year");
+            c3.setCellValueFactory(d -> new ReadOnlyStringWrapper("" + d.getValue().year));
+            c3.setMinWidth(80);
+
+            TableColumn<Book, String> c4 = new TableColumn<>("Status");
+            c4.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue().issued ? "Issued" : "Available"));
+            c4.setMinWidth(100);
+
+            bookTable.getColumns().addAll(c1, c2, c3, c4);
+            bookTable.getItems().addAll(books);
+        };
+
+        btnView.setOnAction(e -> refreshTable.run());
+
+        btnIssue.setOnAction(e -> {
+            TextInputDialog t = new TextInputDialog();
+            t.setHeaderText("Enter Book ID to issue");
+            Optional<String> res = t.showAndWait();
+            if (res.isPresent()) {
+                try {
+                    int id = Integer.parseInt(res.get());
+                    Book b = books.stream().filter(book -> book.id == id).findFirst().orElse(null);
+                    if (b == null) { showAlert("Error", "Book not found"); return; }
+                    if (b.issued) { showAlert("Error", "Already issued"); return; }
+                    b.issued = true; issues.add(new Issue(currentUser.id, id));
+                    showAlert("Success", "Book issued"); refreshTable.run();
+                } catch (NumberFormatException ex) { showAlert("Error", "Invalid number"); }
+            }
+        });
+
+        btnReturn.setOnAction(e -> {
+            TextInputDialog t = new TextInputDialog();
+            t.setHeaderText("Enter Book ID to return");
+            Optional<String> res = t.showAndWait();
+            if (res.isPresent()) {
+                try {
+                    int id = Integer.parseInt(res.get());
+                    Issue issue = issues.stream().filter(i -> i.userId == currentUser.id && i.bookId == id).findFirst().orElse(null);
+                    if (issue == null) { showAlert("Error", "No record found"); return; }
+                    issues.remove(issue);
+                    Book b = books.stream().filter(book -> book.id == id).findFirst().get();
+                    b.issued = false; returnStack.add(b);
+                    showAlert("Success", "Book returned"); refreshTable.run();
+                } catch (NumberFormatException ex) { showAlert("Error", "Invalid number"); }
+            }
+        });
+
+        btnLogout.setOnAction(e -> primaryStage.setScene(loginScene));
+
+        ScrollPane tableScroll = new ScrollPane(bookTable);
+        tableScroll.setFitToHeight(true);
+        tableScroll.setFitToWidth(true);
+        HBox.setHgrow(tableScroll, Priority.ALWAYS);
+        VBox.setVgrow(tableScroll, Priority.ALWAYS);
+
+        hbox.getChildren().addAll(controls, tableScroll);
+        VBox.setVgrow(hbox, Priority.ALWAYS);
+        root.getChildren().add(hbox);
+
+        Scene scene = new Scene(root, 900, 650);
+
+        lbl.styleProperty().bind(
+                scene.widthProperty().add(scene.heightProperty())
+                        .divide(50)
+                        .asString("-fx-font-size: %.0fpx; -fx-font-weight: bold; -fx-text-fill: #333333;")
+        );
+
+        return scene;
+    }
+
+    private void showAlert(String title, String msg){
+        Stage dialog = new Stage();
+        dialog.initOwner(primaryStage);
+        dialog.setTitle(title);
+
+        VBox root = new VBox(15); root.setPadding(new Insets(20)); root.setAlignment(Pos.CENTER);
+        root.setStyle("-fx-background-color: linear-gradient(to bottom, #ffffff, #cce6ff);" +
+                      "-fx-border-color: #3399ff;-fx-border-width: 2px;-fx-border-radius: 10px;-fx-background-radius: 10px;");
+
+        Label lblTitle = new Label(title);
+        lblTitle.setFont(new Font("Arial Bold", 22));
+        lblTitle.setTextFill(title.equalsIgnoreCase("Error") ? Color.RED : Color.DARKGREEN);
+
+        Label lblMsg = new Label(msg); lblMsg.setFont(new Font("Arial", 16));
+
+        HBox btnBox = new HBox(); btnBox.setAlignment(Pos.CENTER);
+        Button btnOk = new Button("OK");
+        btnOk.setStyle("-fx-background-color: #3399ff;-fx-text-fill: white;-fx-font-weight: bold;-fx-background-radius: 5px;");
+        btnOk.setOnAction(e -> dialog.close());
+        btnBox.getChildren().add(btnOk);
+
+        root.getChildren().addAll(lblTitle, lblMsg, btnBox);
+        Scene scene = new Scene(root, 350, 180);
+        dialog.setScene(scene);
+
+        FadeTransition ft = new FadeTransition(Duration.seconds(0.5), root);
+        ft.setFromValue(0); ft.setToValue(1); ft.play();
+
+        dialog.showAndWait();
+    }
+}
